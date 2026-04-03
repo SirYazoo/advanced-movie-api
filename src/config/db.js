@@ -1,4 +1,4 @@
-const mysql = require("mysql2");
+const mysql = require("mysql2/promise");
 require("dotenv").config();
 
 const pool = mysql.createPool({
@@ -11,9 +11,8 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
-const db = pool.promise();
-
-db.getConnection()
+pool
+  .getConnection()
   .then((connection) => {
     console.log("✅ Berhasil terhubung ke database MySQL!");
     connection.release();
@@ -22,4 +21,4 @@ db.getConnection()
     console.error("❌ Gagal terhubung ke database:", err.message);
   });
 
-module.exports = db;
+module.exports = pool;
