@@ -7,6 +7,9 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 app.use("/upload", express.static("upload"));
+const movieRoutes = require("./src/routes/movieRoutes");
+
+app.use("/", movieRoutes);
 
 app.get("/", (req, res) => {
   res.send("Server Advanced Movie API Berjalan!");
