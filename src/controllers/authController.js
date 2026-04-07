@@ -2,18 +2,17 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("node:crypto");
 const db = require("../config/db");
+const transporter = require("../config/mailer");
 
 const register = async (req, res) => {
   try {
     const { fullname, email, password } = req.body;
 
     if (!fullname || !email || !password) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Fullname, Email, dan password wajib diisi!",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Fullname, Email, dan password wajib diisi!",
+      });
     }
 
     const [existingUser] = await db.query(
@@ -35,6 +34,20 @@ const register = async (req, res) => {
       "INSERT INTO users (fullname, email, password, verification_token) VALUES (?, ?, ?, ?)",
       [fullname, email, hashedPassword, verificationToken],
     );
+
+    const verificationLink = `http://localhost:${process.env.PORT || 3000}/verify-email?token=${verificationToken}`;
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Verifikasi Akun Advanced Movie API",
+      html: `
+                <h3>Halo, ${fullname}!</h3>
+                <p>Terima kasih telah mendaftar. Silakan klik tombol di bawah ini untuk mengaktifkan akun Anda:</p>
+                <a href="${verificationLink}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; display: inline-block; border-radius: 5px;">Verifikasi Akun Saya</a>
+            `,
+    };
+
+    await transporter.sendMail(mailOptions);
 
     res.status(201).json({
       success: true,
@@ -102,4 +115,45 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login };
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Token tidak valid!" });
+    }
+
+    const [users] = await db.query(
+      "SELECT * FROM users WHERE verification_token = ?",
+      [token],
+    );
+    const user = users[0];
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Token tidak ditemukan atau sudah digunakan!",
+      });
+    }
+
+    await db.query(
+      "UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE id = ?",
+      [user.id],
+    );
+
+    res.status(200).send(`
+            <h2 style="color: green; font-family: sans-serif; text-align: center; margin-top: 50px;">
+                Email Anda berhasil diverifikasi! Silakan kembali ke aplikasi untuk Login.
+            </h2>
+        `);
+  } catch (error) {
+    console.error("Error Verify Email:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Terjadi kesalahan internal server" });
+  }
+};
+
+module.exports = { register, login, verifyEmail };
